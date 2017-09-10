@@ -1,7 +1,8 @@
 var Ldn = {
   /* options of the plugin */
-  options: {},
-
+  options: {
+  },
+  
   /* all of the needed locales */
   locales: {
     "de": {
@@ -23,92 +24,93 @@ var Ldn = {
       "supplementBtn": "Récupérer"
     }
   },
-
+  
   notificationButtonTemplate: Mirador.Handlebars.compile([
-    '<a href="javascript:;" role="button" title="{{t "notificationTooltip"}}" aria-label="{{t "notificationTooltip"}}" class="mirador-btn mirador-btn-inbox mirador-tooltip">',
-      '<i class="fa fa-bell fa-lg fa-fw"></i>',
-      '<span class="badge-container">',
-        '<span class="badge-count">{{count}}</span>',
-      '</span>',
-    '</a>',
-  ].join('')),
-
+  '<a href="javascript:;" role="button" title="{{t "notificationTooltip"}}" aria-label="{{t "notificationTooltip"}}" class="mirador-btn mirador-btn-inbox mirador-tooltip">',
+  '<i class="fa fa-bell fa-lg fa-fw"></i>',
+  '<span class="badge-container">',
+  '<span class="badge-count">{{count}}</span>',
+  '</span>',
+  '</a>'].join('')),
+  
   notificationTemplate: Mirador.Handlebars.compile([
-    '<div class="notifications-wrapper">',
-      '<p>{{t "notificationModalMsg"}}</p>',
-      '<ul class="notifications-wrapper-list">',
-      '{{#each .}}',
-        '<li>',
-          '<div class="supplement-button">',
-            '<a href="javascript:;" class="supplement mirador-btn-supplement btn btn-success" data-url="{{url}}" data-id="{{id}}">{{t "supplementBtn"}}</a>',
-          '</div>',
-          '<div class="supplement-info">',
-            '<p><a href="{{url}}" rel="noopener" target="_blank">{{url}}</a></p>',
-            '<div class="attribution-info" style="padding-left:10px; font-size:10px">',
-              '<p>Description: {{description}}</p>',
-              '<p>Attribution: {{attribution}}</p>',
-              '<p>License: https://creativecommons.org/publicdomain/zero/4.0/</p>',
-              '<img class="supplement-logo" src="{{logo}}"/>',
-            '</div>',
-          '</div>',
-        '</li>',
-        '{{/each}}',
-      '</ul>',
-    '</div>'
-  ].join('')),
-
+  '<div class="notifications-wrapper">',
+  '<p>{{t "notificationModalMsg"}}</p>',
+  '<ul class="notifications-wrapper-list">',
+  '{{#each .}}',
+  '<li>',
+  '<div class="supplement-button">',
+  '<a href="javascript:;" class="supplement mirador-btn-supplement btn btn-success" data-url="{{url}}" data-id="{{id}}">{{t "supplementBtn"}}</a>',
+  '</div>',
+  '<div class="supplement-info">',
+  '<p><a href="{{url}}" rel="noopener" target="_blank">{{url}}</a></p>',
+  '<div class="attribution-info" style="padding-left:10px; font-size:10px">',
+  '<p>Description: {{description}}</p>',
+  '<p>Attribution: {{attribution}}</p>',
+  '<p>License: https://creativecommons.org/publicdomain/zero/4.0/</p>',
+  '<img class="supplement-logo" src="{{logo}}"/>',
+  '</div>',
+  '</div>',
+  '</li>',
+  '{{/each}}',
+  '</ul>',
+  '</div>'].join('')),
+  
   /* initializes the plugin */
-  init: function(miradorInstance){
+  init: function (miradorInstance) {
     var _this = this;
-
-    i18next.on('initialized', function(){
+    i18next.on('initialized', function () {
       this.addLocalesToViewer();
     }.bind(this));
-
-    miradorInstance.eventEmitter.subscribe("ADD_WINDOW", function(event, data){
-      _this.checkForNotifications(data);
-    });
-
-    this.addEventHandlers();
+    this.injectUserEventHandlers();
+    this.injectWindowEventHandler();
   },
-
+  
+  /* injects window event handler */
+  injectWindowEventHandler: function () {
+    var this_ = this;
+    var origFunc = Mirador.Window.prototype.bindEvents;
+    Mirador.Window.prototype.bindEvents = function () {
+      origFunc.apply(this);
+      //console.log(this.manifest);
+      this_.checkForNotifications(this);
+    }
+  },
+  
   /* injects the notification button to the window menu */
-  injectButtonToMenu: function(count, slot){
+  injectButtonToMenu: function (count, slot) {
     console.log("buttonslot", slot);
-    $(slot).find(".window-manifest-navigation").prepend(this.notificationButtonTemplate(
-      {"count": count}
-    ));
+    $(slot).find(".window-manifest-navigation").prepend(this.notificationButtonTemplate({
+      "count": count
+    }));
   },
-
-
-
+  
   /* adds event handlers mirador */
-  addEventHandlers: function(){
-    var _this = this
-
-    $(document).on("click", ".mirador-btn-inbox", function(e){
+  injectUserEventHandlers: function () {
+    var _this = this;
+    
+    $(document).on("click", ".mirador-btn-inbox", function (e) {
       _this.showNotifications(e);
     }.bind(this));
-
-    $(document).on("click", ".supplement", function(e){
+    
+    $(document).on("click", ".supplement", function (e) {
       var url = $(e.target).attr("data-url");
       var id = $(e.target).attr("data-id");
       _this.retrieveData(url, id);
       bootbox.hideAll();
     }.bind(this));
   },
-
+  
   /* adds the locales to the internationalization module of the viewer */
-  addLocalesToViewer: function(){
-    for(var language in this.locales){
+  addLocalesToViewer: function () {
+    for (var language in this.locales) {
       i18next.addResources(
-        language, 'translation',
-        this.locales[language]
-      );
+      language, 'translation',
+      this.locales[language]);
     }
   },
-
-  showNotifications: function(e){
+  
+  showNotifications: function (e) {
     var _this = this;
     new Mirador.DialogBuilder().dialog({
       title: i18next.t("notificationModalTitle"),
@@ -120,90 +122,89 @@ var Ldn = {
       size: 'large'
     });
   },
-
-  checkForNotifications: function(data){
-    this.notification_urls = [];
+  
+  checkForNotifications: function (data) {
+    this.notification_urls =[];
     this.data = data;
     var _this = this;
-      var serviceProperty = _this.data.manifest.jsonLd.service;
-      var service = [];
-      //if (serviceProperty === undefined){
-      if (true){ //forcing use of regional st. louis inbox for the moment
-        //hard coded st. louis regional inbox
-        service.push({"@id": "http://jpcloudusa015.nshostserver.net:33106/inbox/messages?target=" + _this.data.manifest.uri});
-      }
-      else if (serviceProperty.constructor === Array){
-        for (var i = 0; i < serviceProperty.length; i++){
-          if (serviceProperty[i].profile === "http://www.w3.org/ns/ldp#inbox") {
-            //returns the first service object with the correct context
-            service.push(serviceProperty[i]);
-          }
+    var serviceProperty = _this.data.manifest.jsonLd.service;
+    var service =[];
+    //if (serviceProperty === undefined){
+    if (true) {
+      //forcing use of regional st. louis inbox for the moment
+      //hard coded st. louis regional inbox
+      service.push({
+        "@id": "http://jpcloudusa015.nshostserver.net:33106/inbox/messages?target=" + _this.data.manifest.uri
+      });
+    } else if (serviceProperty.constructor === Array) {
+      for (var i = 0; i < serviceProperty.length; i++) {
+        if (serviceProperty[i].profile === "http://www.w3.org/ns/ldp#inbox") {
+          //returns the first service object with the correct context
+          service.push(serviceProperty[i]);
         }
       }
-      else if (_this.data.manifest.jsonLd.service.profile === "http://www.w3.org/ns/ldp#inbox"){
-        service.push(_this.data.manifest.jsonLd.service);
-      }
-      else {
-        //no service object with the right context is found
-        //hard coded st. louis regional inbox
-          service.push({"@id": "https://rerum-inbox.firebaseio.com/messages.json?orderBy=%22target%22&equalTo=%22" + _this.data.manifest.uri + "%22"});
-
-      }
-      console.log(service);
-      if (service.length > 0){
-        var service_url = service[0]["@id"];
-
-          var inboxRequest = jQuery.ajax({
-            url: service_url,
-            dataType: 'json',
-            async: true
-          });
-
-          inboxRequest.done(function(data){
-            console.log(data)
-            // 0 index means its only going to get the first notification
-            for (i = 0; i < data.contains.length; i++){
-              //var note_url = data.contains[0].url;
-              _this.notification_urls.push(data.contains[i].object);
-            }
-            _this.injectButtonToMenu(data.contains.length, _this.data.appendTo);
-            //$(".window-manifest-navigation").append("<a href='#' id='notifications'><i class='material-icons'>add_alert</i>" + data.contains.length + "</a>");
-            _this.insertNotifications();
-          });
-
+    } else if (_this.data.manifest.jsonLd.service.profile === "http://www.w3.org/ns/ldp#inbox") {
+      service.push(_this.data.manifest.jsonLd.service);
+    } else {
+      //no service object with the right context is found
+      //hard coded st. louis regional inbox
+      service.push({
+        "@id": "https://rerum-inbox.firebaseio.com/messages.json?orderBy=%22target%22&equalTo=%22" + _this.data.manifest.uri + "%22"
+      });
+    }
+    console.log(service);
+    if (service.length > 0) {
+      var service_url = service[0][ "@id"];
+      
+      var inboxRequest = jQuery.ajax({
+        url: service_url,
+        dataType: 'json',
+        async: true
+      });
+      
+      inboxRequest.done(function (data) {
+        console.log(data)
+        // 0 index means its only going to get the first notification
+        for (i = 0; i < data.contains.length; i++) {
+          //var note_url = data.contains[0].url;
+          _this.notification_urls.push(data.contains[i].object);
         }
+        _this.injectButtonToMenu(data.contains.length, _this.data.appendTo);
+        //$(".window-manifest-navigation").append("<a href='#' id='notifications'><i class='material-icons'>add_alert</i>" + data.contains.length + "</a>");
+        _this.insertNotifications();
+      });
+    }
   },
-
-  insertNotifications: function(){
+  
+  insertNotifications: function () {
     var _this = this;
     var slot = _this.data.appendTo
-    _this.tplData = _this.notification_urls.map(function(notification){
+    _this.tplData = _this.notification_urls.map(function (notification) {
       return {
-        url: notification["@id"],
+        url: notification[ "@id"],
         attribution: notification.attribution,
         description: notification.description,
         logo: notification.logo,
         id: _this.data.id
       }
-
     });
     console.log("tplData", _this.tplData);
   },
-
-  retrieveData: function(url, id){
+  
+  retrieveData: function (url, id) {
     var _this = this;
     var rangeRequest = jQuery.ajax({
       url: url,
       dataType: 'json',
       async: true
     });
-    rangeRequest.done(function(data){
+    rangeRequest.done(function (data) {
       _this.data.manifest.jsonLd.structures = data.ranges;
       _this.data.eventEmitter.publish('structuresUpdated.' + id);
     });
   },
 };
 
-$(document).ready(function(){
-  Ldn.init(myMiradorInstance);
+$(document).ready(function () {
+  Ldn.init(Mirador);
 });
